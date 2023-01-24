@@ -1,0 +1,564 @@
+---
+title: "Breast cancer. Logistic regression analysis."
+author: "Maryna Shut"
+date: "2023-19-01"
+output: 
+    html_document:
+                code_folding: hide
+                toc: true
+---
+
+
+
+
+# Overview, goal and methods
+
+
+In this notebook I'm going to do a logistic regression analysis of a dataset to classify a tumour as malignant or benign. In the analysis I will also be using backward elimination, I will explore the step() function and check the effectiveness of the model by calculating the accuracy, sensitivity, precision and F1 score. 
+The variable I'm going to be predicting can have one of the 2 values: 0 or 1, therefore this is a binary classification project.
+
+
+# Terminology
+
+<div style="font-family:Calibri Light;font-size:20px;">Before we start with the analysis it is important to understand what exactly we are trying to predict and what the information provided, our variables of the dataset, mean. <br>"Benign" refers to a type of medical condition or growth that is not cancerous or dangerous as opposed to "malignant".<br>The dataset contains 9 independent variables, each of them is a feature that<br> is typically used in breast cancer analysis.<br>Let's break them down and understand what they mean.<br>
+ <ul>
+<li>Clump thickness </li> is a measure of how thick the cells are within a tumor. Benign cells tend to be grouped in mono-layers, while cancerous - in multi-layer.<br>
+ 
+<li>Uniformity of cell size</li> and uniformity of cell shape are two characteristics that can be used to describe the appearance of cells under a microscope. Here we are checking the degree to which the cells in a sample are similar in size and shape.<br>
+ 
+<li> Marginal adhesion</li> the degree to which cells in a tissue sample adhere, or stick, to one another at the edges of the sample. Loss of adhesion might be a sign of malignancy.<br>
+ 
+ <li>Single epithelial cell size </li>is the size of individual cells in an epithelial tissue sample. Epithelial tissue is a type of tissue that covers the surface of the body and lines internal organs and structures. It is made up of cells that are tightly packed together and held in place by specialized junctions.<br>
+ 
+ <li>Bare nuclei</li> refers to cells in a tissue sample that are missing their cell membranes and cytoplasm, leaving only the nucleus visible.<br>
+ 
+ <li>Bland chromatin </li>is the appearance of the genetic material (chromatin) in the nucleus of a cell under a microscope. Chromatin is made up of DNA and proteins, and it contains the genetic information that controls the cell's functions. When the chromatin in a cell's nucleus is compact and uniform in appearance, it is said to be "bland."<br>
+ 
+ <li>Normal nucleoli </li>are small, spherical structures found within the nucleus of a cell. They are composed of DNA, RNA, and proteins and are responsible for synthesizing ribosomes, which are the cellular structures that produce proteins.
+ Nucleoli are usually visible under a microscope and can vary in size and appearance depending on the stage of the cell cycle and the cell's function. In normal, healthy cells, nucleoli are usually small and have a distinct, well-defined border.<br>
+ 
+ <li>Mitosis</li></div>is the process of cell division that occurs in all living organisms. During mitosis, a single cell divides into two daughter cells, each of which contains a copy of the parent cell's DNA. The process of mitosis is essential for the growth and repair of tissues and the production of new cells.</ul>
+
+
+```{r setup, include = FALSE}
+# # importing libraries
+library(ggplot2)
+library(dplyr)
+library(caret)
+library(ggcorrplot)
+library(ggpubr)
+library(naniar)
+options(warn = -1)
+```
+
+
+```{r}
+ # importing dataset
+
+df<- read.csv("breast_cancer.csv")
+```
+
+
+```{r}
+#studying the dataset
+head(df)
+```
+
+ <div style="font-family:Calibri Light;font-size:20px;">Checking unique values in the column "Class".</div>
+
+```{r}
+unique(df$Class)
+```
+
+```{r}
+# replacing the values with 0 and 1 for the purpose of building logistic regression model
+
+df$Class <- ifelse(df$Class == 2, 0, 1)
+```
+
+ <div style="font-family:Calibri Light;font-size:20px;">This is important information. These two values refer to 'malignant' = 4 or 'benign' = 2.
+ However, for the purpose of building logistic regression model I replaced these values with 0 for benign and 1 for malignant. <br>Now I'm going to check if there are any missing values in this dataset.</div>
+
+
+```{r}
+# checking if any columns have missing values
+
+colSums(is.na(df))
+```
+
+
+<div style="font-family:Calibri Light;font-size:20px;">There is also a visual way to check on the missing values.</div>
+
+
+
+```{r}
+# using vis_miss function to visually identify missing values
+vis_miss(df)
+```
+
+# Correlation
+
+
+```{r}
+# finding correlations between the variables
+
+correlation <- cor(df[,1:10])
+
+ggcorrplot(correlation)
+```
+
+
+```{r}
+# pairwise correlation
+pairs(df,
+      cex.labels = 0.3,
+       col = c("#E7AB79"),
+       pch = 21,
+       main = "Pairwise correlation",
+       col.labels = "black")
+```
+
+
+# Splitting dataset into train and test set
+
+```{r}
+
+set.seed(123)
+# creating the index for the split
+index <- createDataPartition(df$Class, p=0.8, times = 1, list=FALSE)
+
+# splitting the data into train and test sets
+
+train_set <- df%>% slice(index)
+test_set <- df%>% slice(-index)
+```
+
+<div style="font-family:Calibri Light;font-size:20px;"> Checking that the split worked well.</div>
+
+```{r}
+#checking that the split worked well
+length(train_set$Class)
+length(test_set$Class)
+
+```
+<div style="font-family:Calibri Light;font-size:20px;">And we can train the model.</div>
+
+# Training logistic regression model
+
+```{r}
+classifier <- glm(Class ~.,
+                  family = binomial,  # specification of logistic regression
+                  data = train_set)
+```
+<div style="font-family:Calibri Light;font-size:20px;">This is a great feature of analysing data with R: the summary function that lets you see so much information from deviance to z and p-value (Pr(>|z|)).<br>It is easy to read as this report puts 'asterisks' signs and explains the meaning.
+ For example, 'asterisks' tells us that there's a very strong correlation.<br>It is important to keep in mind though, that we could perform a backward elimination and by excluding some of the variables, the correlation may change.</div>
+
+```{r}
+summary(classifier)
+```
+
+
+<div style="font-family:Calibri Light;font-size:20px;">We don't calculate R2 for logistic regression, as logistic regression doesn't have the same concept of residuals as a linear regression.
+Instead, logistic regression has "maximum likelihood".</div>
+
+```{r}
+# removing Uniformity of cell size to see if there are any differences
+classifier_2 <- glm(Class ~.,
+                  family = binomial,  # specification of logistic regression
+                  data = train_set[-2])
+summary(classifier_2)
+```
+
+
+
+<div style="font-family:Calibri Light;font-size:20px;">I can also use the step() function to optimize the model. This function uses the AIC (Akaike information criterion).</div>
+
+```{r}
+# inputting original classifier
+aic_model <- step(classifier)
+
+# checking the output for the best model found by the step() function
+
+summary(aic_model)
+```
+
+
+# Predicting the test set result
+
+```{r}
+predicted_probability <- predict(aic_model, 
+                                 type = "response",  # gives result listed in a single vector
+                                 newdata = test_set[-10])  # removing dep. var. column
+
+y_hat <- ifelse(predicted_probability > 0.5, 1, 0)
+```
+
+
+# Confusion Matrix
+
+```{r}
+cm <- table(test_set[,10], y_hat)
+cm
+```
+
+```{r}
+accuracy <- ((cm[1,1] + cm[2,2]) / (cm[1,1] + cm[2,2] + cm[2,1] + cm[1,2]))*100
+cat(paste("Accuracy: ", round(accuracy,2), "%"))
+
+```
+
+```{r}
+# when a model predicts a positive value, how often is it right?
+
+precision <- (cm[1,1] / (cm[1,1] + cm[1,2]))*100
+cat(paste("Precision: ", round(precision,2), "%"))
+
+```
+
+```{r}
+# recall - the model's ability to predict positive values
+# (how often does a model predict the correct positive values)
+
+recall <- (cm[1,1] / (cm[1,1] + cm[2,1]))*100
+cat(paste("Recall: ", round(recall,2), "%"))
+
+```
+
+```{r}
+F_1 <- (2*precision * recall) / (precision + recall)
+cat(paste("F_1 score: ", round(F_1,2), "%"))
+
+```
+
+# Cross-validation of the model
+
+```{r}
+
+# monte carlo simulation
+
+# deleting the variables that the function step() excluded
+df <- subset(df, select = -c(Uniformity.of.Cell.Size,Single.Epithelial.Cell.Size))
+
+lg <- replicate(100, {
+
+ index <- createDataPartition(df$Class, p=0.8, times = 1, list=FALSE)
+ train_set <- df%>% slice(index)
+ test_set <- df%>% slice(-index)
+ classifier <- glm(Class ~.,
+                  family = binomial,
+                  data = train_set)
+ predicted_probability <- predict(classifier, 
+                                 type = "response",
+                                 newdata = test_set[-10])
+
+ y_hat <- ifelse(predicted_probability > 0.5, 1, 0)
+
+ correct_predictions <- sum(y_hat == test_set$Class)
+
+ total_predictions <- length(y_hat)
+
+ accuracy <- correct_predictions / total_predictions
+
+ return(accuracy)
+
+})
+
+paste("Cross-validated accuracy of the model: ",mean(lg)*100)
+```
+
+<div style="font-family:Calibri Light;font-size:20px;">A we can see, the model returned a pretty good result.</div>
+
+
+
+# Visualization
+
+<div style="font-family:Calibri Light;font-size:20px;"> Now we can visualize the data. <br> I will first create separate plots for the variables and then I will combine them together for an eaiser way to compare the logistic regression lines. I could use library(gridExtra) arranging existing plots together, but unfortunately it doesn't create visually the result I need, so I will create 2 slightly different plots per feature and then combine the result.</div> 
+
+```{r}
+
+ggplot() + 
+  geom_point(aes(df$Clump.Thickness,df$Class)) + 
+  geom_smooth(aes(df$Clump.Thickness,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+  ggtitle("Breast Cancer Diagnosis \nusing Clump Thickness") +
+  ylab("Tumour type") +
+  xlab("Clump thickness") +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.title = element_text(size = 25, face="bold", 
+                                  family = "Times New Roman",
+                                 margin = margin(10,0,10,0)),
+       plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 15),
+       axis.title.x = element_text(family = "Times New Roman", 
+                                   size = 20, margin = margin(11,0,10,0)),
+       axis.text.y = element_text(family = "Times New Roman", size = 15),
+       axis.title.y = element_text(family = "Times New Roman", 
+                                   size = 20, margin=margin(0,10,0,11)),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5,0,0, "cm"))
+
+
+ct <- ggplot() + 
+  geom_point(aes(df$Clump.Thickness,df$Class)) + 
+  geom_smooth(aes(df$Clump.Thickness,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 10),
+       axis.title.x = element_blank(),
+       axis.text.y = element_text(family = "Times New Roman", size = 10),
+       axis.title.y = element_blank(),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5, 0, 0, "cm")) +
+       annotate("text",x=7.0, y=0.2, label="Clump thickness", size = 6)
+```
+
+```{r}
+ggplot() + 
+  geom_point(aes(df$Marginal.Adhesion,df$Class)) + 
+  geom_smooth(aes(df$Marginal.Adhesion,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+  ggtitle("Breast Cancer Diagnosis \nusing Marginal adhesion") +
+  ylab("Tumour type") +
+  xlab("Marginal adhesion") +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.title = element_text(size = 25, face="bold", 
+                                  family = "Times New Roman",
+                                 margin = margin(10,0,10,0)),
+       plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 15),
+       axis.title.x = element_text(family = "Times New Roman", 
+                                   size = 20, margin = margin(11,0,10,0)),
+       axis.text.y = element_text(family = "Times New Roman", size = 15),
+       axis.title.y = element_text(family = "Times New Roman", 
+                                   size = 20, margin=margin(0,10,0,11)),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5,0,0, "cm"))
+
+ma <- ggplot() + 
+  geom_point(aes(df$Marginal.Adhesion,df$Class)) + 
+  geom_smooth(aes(df$Marginal.Adhesion,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 10),
+       axis.title.x = element_blank(),
+       axis.text.y = element_text(family = "Times New Roman", size = 10),
+       axis.title.y = element_blank(),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5, 0, 0, "cm")) +
+       annotate("text",x=6.5, y=0.2, label="Marginal adhesion", size = 6)
+```
+
+```{r}
+ggplot() + 
+  geom_point(aes(df$Bare.Nuclei,df$Class)) + 
+  geom_smooth(aes(df$Bare.Nuclei,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+  ggtitle("Breast Cancer Diagnosis \nusing Barei nuclei") +
+  ylab("Tumour type") +
+  xlab("Barei nuclei") +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.title = element_text(size = 25, face="bold", 
+                                  family = "Times New Roman",
+                                 margin = margin(10,0,10,0)),
+       plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 15),
+       axis.title.x = element_text(family = "Times New Roman", 
+                                   size = 20, margin = margin(11,0,10,0)),
+       axis.text.y = element_text(family = "Times New Roman", size = 15),
+       axis.title.y = element_text(family = "Times New Roman", 
+                                   size = 20, margin=margin(0,10,0,11)),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5,0,0, "cm"))
+
+
+bn <- ggplot() + 
+  geom_point(aes(df$Bare.Nuclei,df$Class)) + 
+  geom_smooth(aes(df$Bare.Nuclei,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 10),
+       axis.title.x = element_blank(),
+       axis.text.y = element_text(family = "Times New Roman", size = 10),
+       axis.title.y = element_blank(),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5, 0, 0, "cm")) +
+       annotate("text",x=6.5, y=0.2, label="Barei nuclei", size = 6)
+
+```
+
+```{r}
+ggplot() + 
+  geom_point(aes(df$Mitoses,df$Class)) + 
+  geom_smooth(aes(df$Mitoses,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+  ggtitle("Breast Cancer Diagnosis \nusing Mitoses") +
+  ylab("Tumour type") +
+  xlab("Mitoses") +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.title = element_text(size = 25, face="bold", 
+                                  family = "Times New Roman",
+                                 margin = margin(10,0,10,0)),
+       plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 15),
+       axis.title.x = element_text(family = "Times New Roman", 
+                                   size = 20, margin = margin(11,0,10,0)),
+       axis.text.y = element_text(family = "Times New Roman", size = 15),
+       axis.title.y = element_text(family = "Times New Roman", 
+                                   size = 20, margin=margin(0,10,0,11)),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5,0,0, "cm"))
+
+
+um <- ggplot() + 
+  geom_point(aes(df$Mitoses,df$Class)) + 
+  geom_smooth(aes(df$Mitoses,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 10),
+       axis.title.x = element_blank(),
+       axis.text.y = element_text(family = "Times New Roman", size = 10),
+       axis.title.y = element_blank(),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5, 0, 0, "cm")) +
+       annotate("text",x=6.5, y=0.2, label="Mitoses", size = 6)
+
+```
+
+```{r}
+ggplot() + 
+  geom_point(aes(df$Bland.Chromatin,df$Class)) + 
+  geom_smooth(aes(df$Bland.Chromatin,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+  ggtitle("Breast Cancer Diagnosis \nusing Bland chromatin") +
+  ylab("Tumour type") +
+  xlab("Bland chromatin") +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.title = element_text(size = 25, face="bold", 
+                                  family = "Times New Roman",
+                                 margin = margin(10,0,10,0)),
+       plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 15),
+       axis.title.x = element_text(family = "Times New Roman", 
+                                   size = 20, margin = margin(11,0,10,0)),
+       axis.text.y = element_text(family = "Times New Roman", size = 15),
+       axis.title.y = element_text(family = "Times New Roman", 
+                                   size = 20, margin=margin(0,10,0,11)),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5,0,0, "cm"))
+
+
+bc <- ggplot() + 
+  geom_point(aes(df$Bland.Chromatin,df$Class)) + 
+  geom_smooth(aes(df$Bland.Chromatin,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 10),
+       axis.title.x = element_blank(),
+       axis.text.y = element_text(family = "Times New Roman", size = 10),
+       axis.title.y = element_blank(),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5, 0, 0, "cm")) +
+       annotate("text",x=6.5, y=0.2, label="Bland chromatin", size = 6)
+```
+
+```{r}
+ ggplot() + 
+  geom_point(aes(df$Normal.Nucleoli,df$Class)) + 
+  geom_smooth(aes(df$Normal.Nucleoli,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+  ggtitle("Breast Cancer Diagnosis \nusing Normal nucleoli") +
+  ylab("Tumour type") +
+  xlab("Normal nucleoli") +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.title = element_text(size = 25, face="bold", 
+                                  family = "Times New Roman",
+                                 margin = margin(10,0,10,0)),
+       plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 15),
+       axis.title.x = element_text(family = "Times New Roman", 
+                                   size = 20, margin = margin(11,0,10,0)),
+       axis.text.y = element_text(family = "Times New Roman", size = 15),
+       axis.title.y = element_text(family = "Times New Roman", 
+                                   size = 20, margin=margin(0,10,0,11)),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5,0,0, "cm"))
+
+
+nn <- ggplot() + 
+  geom_point(aes(df$Normal.Nucleoli,df$Class)) + 
+  geom_smooth(aes(df$Normal.Nucleoli,df$Class),
+              method = "glm", se = FALSE, method.args = list(family = "binomial"), 
+              color = "#557153", size = 1.2) +
+scale_y_continuous(breaks = c(0, 1), labels = c("Benign", "Malignant")) +
+  theme(plot.background = element_rect(fill = "#F0EBCE"),
+       panel.background = element_rect(fill = "#F0EBCE"),
+       axis.text.x = element_text(family = "Times New Roman", size = 10),
+       axis.title.x = element_blank(),
+       axis.text.y = element_text(family = "Times New Roman", size = 10),
+       axis.title.y = element_blank(),
+       panel.grid.major = element_blank(),
+       panel.grid.minor = element_blank(),
+       plot.margin = margin(0,0.5, 0, 0, "cm")) +
+       annotate("text",x=6.5, y=0.2, label="Normal nucleoli", size = 6)
+```
+<div style="font-family:Calibri Light;font-size:20px;"> Combining the plots</div>
+
+```{r}
+# gathering all the plots together so they are easier to compare
+
+ggarrange(ct, ma, bn, nn, um, bc,
+          ncol = 2, nrow = 3)
+```
+
+# Conclusion
+
+<div style="font-family:Calibri Light;font-size:20px;"> We have studied different measures typically used to test a patient for breast cancer. <br>
+We have built a logistic regression model, using these measures, and seen that it works well classifying values.</div>
+
+# References
+
+<div style="font-family:Calibri Light;font-size:20px;"> Dataset source, UCI Machine Learning Repository.</div>
+
+<div style="font-family:Calibri Light;font-size:20px;"> Irizarry, R A 2019, 'Introduction to Data Science', CRC Press, Boca Raton.</div>
+
+<div style="font-family:Calibri Light;font-size:20px;"> Johns Hopkins University, 2023, *Glossary of Breast Cancer Terms*, \<https://pathology.jhu.edu/breast/glossary>.</div>
+
+<div style="font-family:Calibri Light;font-size:20px;"> Sarkar, S K, Nag, A, 2017, *Identifying Patients at Risk of Breast Cancer through Decision Trees*, viewed 15 January, 2023, \<https://www.researchgate.net/publication/325868350_Identifying_Patients_at_Risk_of_Breast_Cancer_through_Decision_Trees></div>
